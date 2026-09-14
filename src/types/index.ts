@@ -60,6 +60,11 @@ export interface LlamaBuildRelease {
   published_at: string;
   html_url: string;
   body: string;
+  current_os?: string;
+  recommended_url?: string;
+  recommended_label?: string;
+  fallback_url?: string;
+  fallback_label?: string;
   vulkan_win_url: string;
   cpu_win_url: string;
   cuda_win_url: string;

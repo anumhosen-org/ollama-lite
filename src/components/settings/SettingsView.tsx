@@ -77,7 +77,7 @@ export const SettingsView: React.FC = () => {
         <div>
           <h1 className="text-lg font-semibold text-neutral-900 dark:text-white tracking-tight">Application Settings</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            Configure local network ports, CLI integration, and Windows startup preferences.
+            Configure local network ports, CLI integration, and system startup preferences.
           </p>
         </div>
 
@@ -165,9 +165,9 @@ export const SettingsView: React.FC = () => {
             {/* Windows Autostart */}
             <div className="py-3 flex items-center justify-between">
               <div>
-                <div className="font-medium text-neutral-800 dark:text-neutral-200">Launch on Windows Startup</div>
+                <div className="font-medium text-neutral-800 dark:text-neutral-200">Launch on System Startup</div>
                 <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  Automatically run Ollama Lite in the system tray when logging into Windows.
+                  Automatically run Ollama Lite in the background when logging into your desktop session.
                 </div>
               </div>
               <button
@@ -221,7 +221,7 @@ export const SettingsView: React.FC = () => {
             </div>
             <p className="text-neutral-600 dark:text-neutral-400 text-[11px] leading-relaxed">
               Synthesized from Ollama's signature UI & REST API semantics with llama.cpp's embedded
-              inference sidecar and Vulkan/CUDA GPU hardware acceleration.
+              inference sidecar and Metal, Vulkan, or CUDA GPU hardware acceleration.
             </p>
           </div>
         </div>

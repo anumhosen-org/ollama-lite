@@ -23,6 +23,14 @@ pub fn get_ollama_lite_cmd_path() -> PathBuf {
     get_cli_dir().join("ollama-lite.cmd")
 }
 
+pub fn get_ollama_sh_path() -> PathBuf {
+    get_cli_dir().join("ollama")
+}
+
+pub fn get_ollama_lite_sh_path() -> PathBuf {
+    get_cli_dir().join("ollama-lite")
+}
+
 pub fn get_cli_bat_path() -> PathBuf {
     get_ollama_cmd_path()
 }
@@ -404,7 +412,261 @@ switch ($Command.ToLower()) {
     let mut ps1_file = File::create(&ollama_ps1_path).map_err(|e| format!("Failed creating ollama.ps1: {}", e))?;
     ps1_file.write_all(ps1_content.as_bytes()).map_err(|e| format!("Failed writing ollama.ps1: {}", e))?;
 
-    // 4. Add CLI dir to Windows User PATH
+    // 4. POSIX Shell Launcher for macOS, Linux, and POSIX shells: ollama & ollama-lite
+    let sh_content = r#"#!/usr/bin/env bash
+# Ollama Lite CLI for macOS, Linux, and POSIX shells
+SERVER_URL="http://127.0.0.1:11434"
+
+show_help() {
+    cat << 'EOF'
+Large language model runner
+
+Usage:
+  ollama [flags]
+  ollama [command]
+
+Available Commands:
+  serve       Start ollama
+  create      Create a model from a Modelfile
+  show        Show information for a model
+  run         Run a model
+  stop        Stop a running model
+  pull        Pull a model from a registry
+  push        Push a model to a registry
+  list, ls    List models
+  ps          List running models
+  cp          Copy a model
+  rm          Remove a model
+  help        Help about any command
+
+Flags:
+  -h, --help      help for ollama
+  -v, --version   version for ollama
+
+Use 'ollama [command] --help' for more information about a command.
+EOF
+}
+
+get_version() {
+    if curl -s -m 2 "$SERVER_URL/api/version" >/dev/null 2>&1; then
+        ver=$(curl -s "$SERVER_URL/api/version" | grep -o '"version":"[^"]*' | cut -d'"' -f4)
+        echo "ollama version is ${ver:-0.1.0}"
+    else
+        echo "ollama version 0.1.0 (offline - start with 'ollama serve' or open Ollama Lite)"
+    fi
+}
+
+list_models() {
+    resp=$(curl -s "$SERVER_URL/api/tags" 2>/dev/null)
+    if [ -z "$resp" ]; then
+        echo "Failed to connect to Ollama Lite server at $SERVER_URL"
+        exit 1
+    fi
+    printf "%-35s %-20s %-12s %-20s\n" "NAME" "ID" "SIZE" "MODIFIED"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import sys, json
+data = json.loads('''$resp''')
+for m in data.get('models', []):
+    name = m.get('name', 'unknown')
+    mid = m.get('digest', '')[:12]
+    size = f\"{m.get('size', 0) / (1024*1024*1024):.1f} GB\"
+    mod = m.get('modified_at', '')[:19].replace('T', ' ')
+    print(f\"{name:<35} {mid:<20} {size:<12} {mod:<20}\")
+"
+    else
+        echo "$resp"
+    fi
+}
+
+list_ps() {
+    resp=$(curl -s "$SERVER_URL/api/ps" 2>/dev/null)
+    if [ -z "$resp" ]; then
+        echo "Failed to connect to Ollama Lite server at $SERVER_URL"
+        exit 1
+    fi
+    printf "%-35s %-20s %-12s %-15s %-20s\n" "NAME" "ID" "SIZE" "PROCESSOR" "UNTIL"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import sys, json
+data = json.loads('''$resp''')
+for m in data.get('models', []):
+    name = m.get('name', 'unknown')
+    mid = m.get('digest', '')[:12]
+    size = f\"{m.get('size', 0) / (1024*1024*1024):.1f} GB\"
+    proc = m.get('details', {}).get('format', 'GPU/CPU')
+    until = m.get('expires_at', '')[:19].replace('T', ' ')
+    print(f\"{name:<35} {mid:<20} {size:<12} {proc:<15} {until:<20}\")
+"
+    else
+        echo "$resp"
+    fi
+}
+
+show_model() {
+    model="$1"
+    if [ -z "$model" ]; then
+        echo "Error: model name is required"
+        exit 1
+    fi
+    resp=$(curl -s -X POST "$SERVER_URL/api/show" -H "Content-Type: application/json" -d "{\"name\":\"$model\"}" 2>/dev/null)
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import sys, json
+data = json.loads('''$resp''')
+params = data.get('parameters', '')
+print('  Model')
+print(f'    architecture        {data.get(\"details\", {}).get(\"family\", \"unknown\")}')
+print(f'    parameters          {data.get(\"details\", {}).get(\"parameter_size\", \"unknown\")}')
+print(f'    quantization        {data.get(\"details\", {}).get(\"quantization_level\", \"unknown\")}')
+if params:
+    print('\n  Parameters')
+    for line in params.strip().split('\n'):
+        print(f'    {line}')
+"
+    else
+        echo "$resp"
+    fi
+}
+
+run_model() {
+    model="$1"
+    shift
+    prompt="$*"
+
+    if [ -z "$model" ]; then
+        echo "Error: model name is required (e.g. ollama run llama3)"
+        exit 1
+    fi
+
+    if [ -n "$prompt" ]; then
+        curl -s -N -X POST "$SERVER_URL/api/generate" \
+            -H "Content-Type: application/json" \
+            -d "{\"model\":\"$model\",\"prompt\":\"$prompt\"}" | while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                printf "%s" "$(echo "$line" | grep -o '"response":"[^"]*' | cut -d'"' -f4 | sed 's/\\n/\n/g; s/\\"/\"/g')"
+            fi
+        done
+        echo ""
+    else
+        echo ">>> Interactive Chat with $model"
+        echo ">>> Type '/bye' to exit, '/clear' to clear screen"
+        echo ""
+        while true; do
+            printf ">>> "
+            if ! IFS= read -r user_input; then
+                echo ""
+                break
+            fi
+            if [ "$user_input" = "/bye" ] || [ "$user_input" = "/exit" ]; then
+                break
+            fi
+            if [ "$user_input" = "/clear" ]; then
+                clear
+                continue
+            fi
+            if [ -z "$user_input" ]; then
+                continue
+            fi
+
+            escaped=$(printf '%s' "$user_input" | sed 's/\\/\\\\/g; s/"/\\"/g')
+            curl -s -N -X POST "$SERVER_URL/api/generate" \
+                -H "Content-Type: application/json" \
+                -d "{\"model\":\"$model\",\"prompt\":\"$escaped\"}" | while IFS= read -r line; do
+                if [ -n "$line" ]; then
+                    printf "%s" "$(echo "$line" | grep -o '"response":"[^"]*' | cut -d'"' -f4 | sed 's/\\n/\n/g; s/\\"/\"/g')"
+                fi
+            done
+            echo ""
+        done
+    fi
+}
+
+serve_server() {
+    if curl -s -m 2 "$SERVER_URL/api/version" >/dev/null 2>&1; then
+        echo "Ollama is running on $SERVER_URL"
+    else
+        echo "Ollama server is starting on $SERVER_URL..."
+        echo "Launch the Ollama Lite desktop app to keep the background daemon running."
+    fi
+}
+
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+    list|ls)
+        list_models
+        ;;
+    ps)
+        list_ps
+        ;;
+    show)
+        show_model "$@"
+        ;;
+    run)
+        run_model "$@"
+        ;;
+    serve|start)
+        serve_server
+        ;;
+    stop)
+        curl -s -X POST "$SERVER_URL/api/generate" -H "Content-Type: application/json" -d '{"model":"","prompt":""}' >/dev/null 2>&1
+        echo "Model unloaded."
+        ;;
+    pull)
+        echo "Pulling model $1..."
+        curl -N -s -X POST "$SERVER_URL/api/pull" -H "Content-Type: application/json" -d "{\"name\":\"$1\"}"
+        echo ""
+        ;;
+    rm|delete)
+        echo "Removing model $1..."
+        curl -s -X DELETE "$SERVER_URL/api/delete" -H "Content-Type: application/json" -d "{\"name\":\"$1\"}"
+        echo "Deleted $1"
+        ;;
+    cp)
+        curl -s -X POST "$SERVER_URL/api/copy" -H "Content-Type: application/json" -d "{\"source\":\"$1\",\"destination\":\"$2\"}"
+        echo "Copied $1 to $2"
+        ;;
+    version|-v|--version)
+        get_version
+        ;;
+    help|-h|--help|*)
+        show_help
+        ;;
+esac
+"#;
+
+    let ollama_sh_path = get_ollama_sh_path();
+    let ollama_lite_sh_path = get_ollama_lite_sh_path();
+
+    let mut sh_file = File::create(&ollama_sh_path).map_err(|e| format!("Failed creating ollama shell script: {}", e))?;
+    sh_file.write_all(sh_content.as_bytes()).map_err(|e| format!("Failed writing ollama shell script: {}", e))?;
+
+    let mut sh_lite_file = File::create(&ollama_lite_sh_path).map_err(|e| format!("Failed creating ollama-lite shell script: {}", e))?;
+    sh_lite_file.write_all(sh_content.as_bytes()).map_err(|e| format!("Failed writing ollama-lite shell script: {}", e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&ollama_sh_path, std::fs::Permissions::from_mode(0o755));
+        let _ = std::fs::set_permissions(&ollama_lite_sh_path, std::fs::Permissions::from_mode(0o755));
+
+        // Install to ~/.local/bin if available/creatable
+        if let Some(home) = dirs::home_dir() {
+            let local_bin = home.join(".local").join("bin");
+            let _ = std::fs::create_dir_all(&local_bin);
+            let target_ollama = local_bin.join("ollama");
+            let _ = std::fs::copy(&ollama_sh_path, &target_ollama);
+            let _ = std::fs::set_permissions(&target_ollama, std::fs::Permissions::from_mode(0o755));
+
+            let target_lite = local_bin.join("ollama-lite");
+            let _ = std::fs::copy(&ollama_lite_sh_path, &target_lite);
+            let _ = std::fs::set_permissions(&target_lite, std::fs::Permissions::from_mode(0o755));
+        }
+    }
+
+    // 5. Add CLI dir to Windows User PATH
     #[cfg(target_os = "windows")]
     {
         use winreg::enums::*;
@@ -426,5 +688,12 @@ switch ($Command.ToLower()) {
         }
     }
 
-    Ok(ollama_cmd_path.to_string_lossy().to_string())
+    #[cfg(target_os = "windows")]
+    {
+        Ok(ollama_cmd_path.to_string_lossy().to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(ollama_sh_path.to_string_lossy().to_string())
+    }
 }

@@ -30,13 +30,23 @@ pub struct EngineInfo {
 pub fn check_binary_installed() -> Option<String> {
     let bin_dir = get_bin_dir();
     let candidates = vec![
+        bin_dir.join("llama-server"),
         bin_dir.join("llama-server.exe"),
         bin_dir.join("llama-server-x86_64-pc-windows-msvc.exe"),
+        bin_dir.join("bin").join("llama-server"),
+        bin_dir.join("bin").join("llama-server.exe"),
+        bin_dir.join("build").join("bin").join("llama-server"),
+        bin_dir.join("resources").join("llama-server"),
         bin_dir.join("resources").join("llama-server.exe"),
     ];
 
     for c in candidates {
         if c.exists() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&c, std::fs::Permissions::from_mode(0o755));
+            }
             return Some(c.to_string_lossy().to_string());
         }
     }
@@ -137,10 +147,25 @@ pub async fn download_llama_engine(
             }
             let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let name = outpath.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                if name.starts_with("llama-") || outpath.extension().is_none() {
+                    let _ = std::fs::set_permissions(&outpath, std::fs::Permissions::from_mode(0o755));
+                }
+            }
         }
     }
 
     let exe = check_binary_installed().ok_or_else(|| "Binary extracted but not found in destination".to_string())?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755));
+    }
 
     let _ = app.emit(
         "download-progress",

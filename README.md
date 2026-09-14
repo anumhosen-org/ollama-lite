@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/llama.cpp-Inference%20Engine-ff9900?logo=cplusplus&logoColor=white" alt="llama.cpp" />
   <img src="https://img.shields.io/badge/Ollama%20API-Port%2011434-green?logo=ollama&logoColor=white" alt="Ollama API 11434" />
   <img src="https://img.shields.io/badge/TailwindCSS-v4-38bdf8?logo=tailwindcss&logoColor=white" alt="TailwindCSS v4" />
-  <img src="https://img.shields.io/badge/Platform-Windows-0078d7?logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/Platforms-Windows%20%7C%20macOS%20%7C%20Linux-blueviolet" alt="Platforms" />
   <img src="https://img.shields.io/badge/License-MIT-purple" alt="License" />
 </p>
 
@@ -22,12 +22,12 @@
 
 ## 🌟 Overview
 
-**Ollama Lite** is a lightweight, self-contained local AI desktop runner built with **Tauri v2** and **React 19**. It marries the developer-centric UI/UX and REST API semantics of **Ollama** with the raw execution speed, GPU flexibility (Vulkan, CUDA, CPU), and direct GGUF model control of **llama.cpp**.
+**Ollama Lite** is a lightweight, self-contained local AI desktop runner built with **Tauri v2** and **React 19** for **Windows, macOS, and Linux**. It marries the developer-centric UI/UX and REST API semantics of **Ollama** with the raw execution speed, GPU flexibility (Metal on macOS, Vulkan on Windows/Linux, CUDA on Windows, CPU fallback), and direct GGUF model control of **llama.cpp**.
 
 Ollama Lite operates simultaneously as:
 1. A **modern desktop application** with full chat workspace, collapsible reasoning view for DeepSeek-R1, and 23 curated models.
 2. An **embedded REST reverse proxy on port `11434`**, providing 100% drop-in API parity with official Ollama.
-3. A **drop-in terminal CLI (`ollama`)** installed directly into your Windows user PATH.
+3. A **drop-in terminal CLI (`ollama`)** installed directly into your system PATH (PowerShell & Batch on Windows; executable shell script on macOS & Linux).
 
 ---
 
@@ -158,16 +158,24 @@ One-click model downloading with real-time transfer speed, progress bars, and Hu
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, `react-icons`
 - **Desktop Runtime**: Tauri v2, WebView2 (Windows)
 - **Backend Services**: Rust (Tokio, Reqwest, Serde, Rusqlite, Sysinfo)
-- **Inference**: Official `llama.cpp` (`llama-server.exe`)
+- **Inference**: Official `llama.cpp` (`llama-server`) with Metal, Vulkan, and CUDA acceleration
 
 ---
 
 ## 📥 Installation
 
 ### Download Pre-Built Binaries
-Download the latest Windows installer from the [Releases](https://github.com/your-username/ollama-lite/releases) page:
-- **`Ollama-Lite_<version>_x64-setup.exe`** (Recommended NSIS Installer)
-- **`Ollama-Lite_<version>_x64_en-US.msi`** (Windows MSI Package)
+Download the latest native binary package for your operating system from the [Releases](https://github.com/your-username/ollama-lite/releases) page:
+
+- **Windows**:
+  - `Ollama-Lite_<version>_x64-setup.exe` (Recommended NSIS Installer)
+  - `Ollama-Lite_<version>_x64_en-US.msi` (MSI Package)
+- **macOS**:
+  - `Ollama-Lite_<version>_aarch64.dmg` (Apple Silicon M1/M2/M3/M4 with Metal acceleration)
+  - `Ollama-Lite_<version>_x64.dmg` (Intel Mac)
+- **Linux**:
+  - `Ollama-Lite_<version>_amd64.AppImage` (Universal standalone Linux package)
+  - `Ollama-Lite_<version>_amd64.deb` (Debian / Ubuntu package)
 
 ---
 
@@ -175,8 +183,14 @@ Download the latest Windows installer from the [Releases](https://github.com/you
 
 ### Prerequisites
 1. **Node.js**: `v20.x` or later ([Download](https://nodejs.org/))
-2. **Rust**: Stable toolchain with `x86_64-pc-windows-msvc` ([rustup.rs](https://rustup.rs/))
-3. **C++ Build Tools**: Visual Studio Build Tools with C++ workload
+2. **Rust**: Stable toolchain ([rustup.rs](https://rustup.rs/))
+3. **Platform Dependencies**:
+   - **Windows**: Visual Studio Build Tools with C++ workload
+   - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+   - **Linux (Ubuntu / Debian)**:
+     ```bash
+     sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf build-essential
+     ```
 
 ### Steps
 
@@ -196,7 +210,7 @@ Download the latest Windows installer from the [Releases](https://github.com/you
    npm run tauri dev
    ```
 
-4. **Build production installer**:
+4. **Build production bundle**:
    ```bash
    npm run tauri build
    ```
@@ -206,7 +220,7 @@ Download the latest Windows installer from the [Releases](https://github.com/you
 
 ## 🤖 Automated Releases via GitHub Actions
 
-This repository includes a GitHub Actions workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)) for automated builds and releases.
+This repository includes a multi-platform GitHub Actions workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)) for automated builds and releases across Windows, macOS, and Ubuntu Linux.
 
 ### Creating a Release:
 1. **Push a Git Tag**:
@@ -219,7 +233,7 @@ This repository includes a GitHub Actions workflow ([`.github/workflows/release.
    - Select the **Release** workflow.
    - Click **Run workflow**, optionally entering a version tag (e.g., `v0.1.0`).
 
-The workflow will automatically compile the frontend, build the optimized Rust release bundle, and upload both `.exe` and `.msi` installers to a published GitHub Release.
+The workflow will automatically compile the frontend, build the optimized Rust release bundles in parallel across Windows, macOS, and Linux runners, and upload all `.exe`, `.msi`, `.dmg`, `.AppImage`, and `.deb` packages to a unified GitHub Release.
 
 ---
 

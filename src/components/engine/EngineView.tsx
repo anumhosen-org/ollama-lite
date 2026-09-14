@@ -285,7 +285,7 @@ export const EngineView: React.FC<EngineViewProps> = ({
                       : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                   }`}
                 >
-                  Vulkan (Recommended: AMD / Intel / NVIDIA)
+                  {releases[0]?.recommended_label || "GPU / Recommended"}
                 </button>
                 <button
                   onClick={() => setSelectedBuildType("cpu")}
@@ -295,13 +295,15 @@ export const EngineView: React.FC<EngineViewProps> = ({
                       : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                   }`}
                 >
-                  CPU (AVX2 Fallback)
+                  {releases[0]?.fallback_label || "CPU (Fallback)"}
                 </button>
               </div>
 
               {releases.slice(0, 3).map((rel) => {
                 const targetUrl =
-                  selectedBuildType === "vulkan" ? rel.vulkan_win_url : rel.cpu_win_url;
+                  selectedBuildType === "vulkan"
+                    ? rel.recommended_url || rel.vulkan_win_url
+                    : rel.fallback_url || rel.cpu_win_url;
                 return (
                   <div
                     key={rel.tag_name}
@@ -320,7 +322,7 @@ export const EngineView: React.FC<EngineViewProps> = ({
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 font-medium transition-colors border border-neutral-300 dark:border-neutral-700 disabled:opacity-50 cursor-pointer"
                     >
                       <FiDownload className="w-3.5 h-3.5" />
-                      <span>Install {selectedBuildType.toUpperCase()}</span>
+                      <span>Install Engine</span>
                     </button>
                   </div>
                 );
@@ -330,14 +332,18 @@ export const EngineView: React.FC<EngineViewProps> = ({
             <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
                 <FiAlertCircle className="w-4 h-4 text-amber-500" />
-                <span>Quick Setup: Download latest stable llama.cpp Vulkan release binary</span>
+                <span>Quick Setup: Download latest stable llama.cpp engine binary</span>
               </div>
               <button
-                onClick={() =>
-                  handleDownloadEngine(
-                    "https://github.com/ggml-org/llama.cpp/releases/download/b4800/llama-b4800-bin-win-vulkan-x64.zip"
-                  )
-                }
+                onClick={() => {
+                  const ua = typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
+                  const url = ua.includes("mac")
+                    ? "https://github.com/ggml-org/llama.cpp/releases/download/b4800/llama-b4800-bin-macos-arm64.zip"
+                    : ua.includes("linux")
+                    ? "https://github.com/ggml-org/llama.cpp/releases/download/b4800/llama-b4800-bin-ubuntu-x64.zip"
+                    : "https://github.com/ggml-org/llama.cpp/releases/download/b4800/llama-b4800-bin-win-vulkan-x64.zip";
+                  handleDownloadEngine(url);
+                }}
                 disabled={isDownloadingEngine}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 text-white dark:bg-white dark:text-black font-semibold hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors cursor-pointer"
               >
