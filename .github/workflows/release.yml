@@ -1,0 +1,81 @@
+name: 'Release'
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v0.1.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine tag name
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.version }}" != "" ]]; then
+            echo "name=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=v0.1.0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Tauri Application
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ steps.tag.outputs.name }}
+          releaseName: 'Ollama Lite ${{ steps.tag.outputs.name }}'
+          releaseBody: |
+            ## Ollama Lite ${{ steps.tag.outputs.name }}
+            
+            High-performance local AI desktop runner combining Ollama's minimalist UI & REST API with llama.cpp's embedded sidecar engine.
+            
+            ### Highlights
+            - **100% Ollama REST API & Drop-in CLI Parity**: Drop-in replacement on port `11434` for Cursor, Continue, LangChain, Open WebUI, and official Ollama SDKs.
+            - **Drop-in Terminal CLI**: Full command parity with `ollama run <model>`, `ollama pull`, `ollama list`, `ollama ps`, `ollama show`, `ollama rm`, and `ollama cp`.
+            - **Inference Engine**: Embedded `llama-server` sidecar supporting GPU hardware acceleration (Vulkan, CUDA, CPU).
+            - **Curated Model Hub**: One-click downloads for 23 curated models (DeepSeek-R1, Llama 3.2, Qwen 2.5 Coder, Mistral, Gemma 2, etc.) and direct Hugging Face GGUF imports.
+            - **Modern Desktop UI**: Dark/light mode theme, reasoning thinking accordion for DeepSeek-R1, parameter tuning, markdown rendering, and syntax highlighting.
+            - **System Tray Minimization**: Seamless window minimize to tray on close (Alt+F4 or ✕ button) keeping background inference active.
+            
+            ### Download
+            Download the installer (`.exe` NSIS setup or `.msi`) below to install Ollama Lite on Windows.
+          releaseDraft: false
+          prerelease: false

@@ -1,4 +1,6 @@
+#[cfg(target_os = "windows")]
 use winreg::enums::*;
+#[cfg(target_os = "windows")]
 use winreg::RegKey;
 
 const REG_KEY_NAME: &str = "Ollama-Lite";
